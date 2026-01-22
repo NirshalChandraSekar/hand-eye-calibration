@@ -58,3 +58,22 @@ class RealSenseCamera:
 
         except Exception as e:
             print(f"Error capturing frame: {e}")
+
+    def get_intrinsic_and_distortion(self, camera_serial):
+        ctx = rs.context()
+        for device in ctx.query_devices():
+            serial_number = device.get_info(rs.camera_info.serial_number)
+            if serial_number == camera_serial:
+                sensor = device.first_color_sensor()
+                intrinsics = sensor.get_stream_profiles()[0].as_video_stream_profile().get_intrinsics()
+                intrinsic_matrix = np.array([[intrinsics.fx, 0, intrinsics.ppx],
+                                             [0, intrinsics.fy, intrinsics.ppy],
+                                             [0, 0, 1]])
+                distortion_coeffs = np.array(intrinsics.coeffs)
+                return intrinsic_matrix, distortion_coeffs
+        print(f"Camera with serial {camera_serial} not found.")
+        return None, None
+
+if __name__ == "__main__":
+    camera = RealSenseCamera()
+    print("Connected cameras:", camera.check_connected_cameras())

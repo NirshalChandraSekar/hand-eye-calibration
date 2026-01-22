@@ -8,6 +8,8 @@ from zeus_robot import zeusRobot
 from realsense import RealSenseCamera
 
 
+
+
 # ---------------- Utilities ----------------
 def invert_transform(R, t):
     """Invert rigid transform: x_dst = R x_src + t  ->  x_src = R^T x_dst + (-R^T t)."""
@@ -55,71 +57,6 @@ def parse_pose_index(path):
     except Exception:
         raise ValueError(f"Could not parse pose index from: {path}")
 
-
-def get_realsense_intrinsics_and_distortion(realsense, camera_serial=None):
-    """
-    Best-effort: try to fetch K and D from your RealSenseCamera wrapper.
-
-    You MAY need to adapt this function to your RealSenseCamera implementation.
-    Common patterns:
-      - realsense.K / realsense.D
-      - realsense.intrinsics / realsense.distortion_coeffs
-      - realsense.get_intrinsics(serial) -> (K, D)
-      - realsense.get_camera_params(...) -> dict with K,D
-
-    Returns:
-      K: (3,3) float64
-      D: (N,1) float64
-    """
-    # 1) Direct attributes
-    for k_attr in ["K", "intrinsics", "camera_matrix"]:
-        if hasattr(realsense, k_attr):
-            K = getattr(realsense, k_attr)
-            if K is not None:
-                K = np.asarray(K, dtype=np.float64).reshape(3, 3)
-                break
-    else:
-        K = None
-
-    for d_attr in ["D", "distortion_coeffs", "dist_coeffs"]:
-        if hasattr(realsense, d_attr):
-            D = getattr(realsense, d_attr)
-            if D is not None:
-                D = np.asarray(D, dtype=np.float64).reshape(-1, 1)
-                break
-    else:
-        D = None
-
-    if K is not None and D is not None:
-        return K, D
-
-    # 2) Methods
-    for meth in ["get_intrinsics", "get_camera_params", "get_calibration", "get_params"]:
-        if hasattr(realsense, meth):
-            fn = getattr(realsense, meth)
-            try:
-                out = fn(camera_serial) if camera_serial is not None else fn()
-            except TypeError:
-                # maybe expects cameras=[serial]
-                out = fn(cameras=[camera_serial]) if camera_serial is not None else fn()
-
-            if isinstance(out, tuple) and len(out) >= 2:
-                K = np.asarray(out[0], dtype=np.float64).reshape(3, 3)
-                D = np.asarray(out[1], dtype=np.float64).reshape(-1, 1)
-                return K, D
-
-            if isinstance(out, dict):
-                if "K" in out and "D" in out:
-                    K = np.asarray(out["K"], dtype=np.float64).reshape(3, 3)
-                    D = np.asarray(out["D"], dtype=np.float64).reshape(-1, 1)
-                    return K, D
-
-    raise RuntimeError(
-        "Could not obtain camera intrinsics/distortion from RealSenseCamera.\n"
-        "Fix by either:\n"
-        "  (A) editing get_realsense_intrinsics_and_distortion() to match your wrapper, or\n"
-        "  (B) hard-coding K and D in __init__ of eyeToHand.\n"
-    )
 
 
 def calibrate_eye_to_hand(R_gripper2base_list, t_gripper2base_list,
@@ -220,7 +157,7 @@ class eyeToHand:
     def _ensure_KD(self, camera_serial):
         if self.K is not None and self.D is not None:
             return
-        self.K, self.D = get_realsense_intrinsics_and_distortion(self.realsense, camera_serial=camera_serial)
+        self.K, self.D = self.realsense.get_intrinsic_and_distortion(camera_serial=camera_serial)
 
     def get_aruco_pose_target2cam(self, image):
         """
@@ -316,16 +253,16 @@ class eyeToHand:
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
-    # zeus = zeusRobot(robots=["lightning"])
-    # zeus.go_home()
-    # time.sleep(1)
+    zeus = zeusRobot(robots=["lightning"])
+    zeus.go_home()
+    time.sleep(1)
 
     realsense = RealSenseCamera()
 
     # If your RealSenseCamera wrapper cannot provide intrinsics automatically,
     # pass K and D explicitly here.
     eye_to_hand = eyeToHand(
-        None,
+        zeus,
         realsense,
         which_robot="lightning",
         tag_id=5,

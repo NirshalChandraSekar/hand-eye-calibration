@@ -106,22 +106,6 @@ class zeusRobot:
 if __name__ == "__main__":
     robot = zeusRobot(robots=['lightning'])
     robot.go_home()
-    robot.set_free_drive(enable=True)
-
-    # Make gripper grasp on command
-    input("Press Enter to make grippers grasp...")
-    robot.grasp(enable=True)
-    time.sleep(2)
-    
-    for i in range(20):
-        check = input("Press f for free drive")
-        if check == 'f':
-            robot.set_free_drive(enable=True)
-            input("Press Enter to disable free drive...")
-            robot.set_free_drive(enable=False)
-
-        print("Current Joint Poses:", robot.get_current_joint_poses())
-        input("Press Enter to continue...")
 
 
 
